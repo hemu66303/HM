@@ -1,0 +1,313 @@
+-- 禁止掉落伤害脚本
+-- 作者: 和睦
+-- 修复版 - 优化状态显示
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- 等待玩家加载完成
+if not player then
+    player = Players.PlayerAdded:Wait()
+end
+
+-- 创建主UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "NoFallDamageGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- 创建主框架
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 200, 0, 80)
+MainFrame.Position = UDim2.new(0, 10, 0, 10)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+-- 添加圆角
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = MainFrame
+
+-- 添加阴影
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(80, 80, 80)
+UIStroke.Thickness = 2
+UIStroke.Parent = MainFrame
+
+-- 标题栏
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 25)
+TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 8)
+TitleCorner.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+TitleLabel.Position = UDim2.new(0, 5, 0, 0)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "禁止掉落伤害脚本"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 12
+TitleLabel.Font = Enum.Font.Gotham
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = TitleBar
+
+-- 关闭按钮
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 20, 0, 20)
+CloseButton.Position = UDim2.new(1, -25, 0, 2)
+CloseButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+CloseButton.BorderSizePixel = 0
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 12
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 4)
+CloseCorner.Parent = CloseButton
+
+-- 内容区域
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, 0, 1, -25)
+ContentFrame.Position = UDim2.new(0, 0, 0, 25)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- 状态显示
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(1, -10, 0, 20)
+StatusLabel.Position = UDim2.new(0, 5, 0, 10)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "状态: 初始化..."
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.TextSize = 14
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Parent = ContentFrame
+
+local AuthorLabel = Instance.new("TextLabel")
+AuthorLabel.Name = "AuthorLabel"
+AuthorLabel.Size = UDim2.new(1, -10, 0, 15)
+AuthorLabel.Position = UDim2.new(0, 5, 0, 35)
+AuthorLabel.BackgroundTransparency = 1
+AuthorLabel.Text = "作者: 和睦"
+AuthorLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+AuthorLabel.TextSize = 10
+AuthorLabel.Font = Enum.Font.Gotham
+AuthorLabel.TextXAlignment = Enum.TextXAlignment.Left
+AuthorLabel.Parent = ContentFrame
+
+-- 拖拽功能
+local dragging = false
+local dragInput, dragStart, startPos
+
+local function updateInput(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        updateInput(input)
+    end
+end)
+
+-- 关闭按钮功能
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+CloseButton.MouseEnter:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80, 80, 80)}):Play()
+end)
+
+CloseButton.MouseLeave:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play()
+end)
+
+-- 防止掉落伤害的核心功能
+local function preventFallDamage(character, humanoid)
+    if not character or not humanoid then 
+        StatusLabel.Text = "状态: 角色未就绪"
+        return 
+    end
+    
+    StatusLabel.Text = "状态: 已激活"
+    
+    -- 方法1: 禁用掉落状态（主要方法）
+    local success1, result1 = pcall(function()
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    end)
+    
+    local success2, result2 = pcall(function()
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+    end)
+    
+    if success1 and success2 then
+        StatusLabel.Text = "状态: 防护已启用"
+    else
+        StatusLabel.Text = "状态: 使用备用方案"
+    end
+    
+    -- 方法2: 健康值保护（备用方案）
+    local lastHealth = humanoid.Health
+    local healthConnection = humanoid.HealthChanged:Connect(function()
+        if humanoid.Health < lastHealth then
+            local healthDiff = lastHealth - humanoid.Health
+            -- 如果健康值下降超过10（可能是掉落伤害）
+            if healthDiff > 10 and healthDiff < 100 then -- 排除正常伤害和死亡
+                humanoid.Health = lastHealth
+                StatusLabel.Text = "状态: 已阻止掉落伤害"
+                -- 2秒后恢复状态显示
+                delay(2, function()
+                    if humanoid and humanoid.Health > 0 then
+                        StatusLabel.Text = "状态: 防护已启用"
+                    end
+                end)
+            end
+        end
+        lastHealth = humanoid.Health
+    end)
+    
+    -- 方法3: 掉落状态检测
+    local stateConnection = humanoid.StateChanged:Connect(function(oldState, newState)
+        if newState == Enum.HumanoidStateType.Freefall then
+            StatusLabel.Text = "状态: 检测到掉落"
+            -- 在掉落过程中保持健康值
+            local fallStartHealth = humanoid.Health
+            local fallProtection = RunService.Heartbeat:Connect(function()
+                if humanoid.Health < fallStartHealth then
+                    humanoid.Health = fallStartHealth
+                end
+                
+                -- 如果不再掉落，断开连接
+                if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
+                    fallProtection:Disconnect()
+                    StatusLabel.Text = "状态: 防护已启用"
+                end
+            end)
+        end
+    end)
+    
+    -- 监听角色死亡
+    local diedConnection = humanoid.Died:Connect(function()
+        StatusLabel.Text = "状态: 角色死亡"
+        -- 5秒后重新初始化（等待重生）
+        delay(5, function()
+            if player.Character then
+                setupCharacter()
+            end
+        end)
+    end)
+    
+    return healthConnection, stateConnection, diedConnection
+end
+
+-- 角色管理
+local currentConnections = {}
+
+local function setupCharacter()
+    -- 清理之前的连接
+    for _, connection in pairs(currentConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    currentConnections = {}
+    
+    StatusLabel.Text = "状态: 正在加载角色..."
+    
+    local character = player.Character
+    if not character then
+        StatusLabel.Text = "状态: 等待角色生成..."
+        return
+    end
+    
+    -- 等待Humanoid加载
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then
+        character.ChildAdded:Connect(function(child)
+            if child:IsA("Humanoid") then
+                setupCharacter()
+            end
+        end)
+        return
+    end
+    
+    -- 等待角色完全加载
+    delay(1, function()
+        local healthConn, stateConn, diedConn = preventFallDamage(character, humanoid)
+        if healthConn then table.insert(currentConnections, healthConn) end
+        if stateConn then table.insert(currentConnections, stateConn) end
+        if diedConn then table.insert(currentConnections, diedConn) end
+    end)
+end
+
+-- 初始设置
+setupCharacter()
+
+-- 角色重生时重新设置
+player.CharacterAdded:Connect(function(character)
+    StatusLabel.Text = "状态: 新角色生成中..."
+    delay(2, function() -- 给角色一些时间完全加载
+        setupCharacter()
+    end)
+end)
+
+-- 显示/隐藏快捷键（按F9切换显示）
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F9 then
+        MainFrame.Visible = not MainFrame.Visible
+        if MainFrame.Visible then
+            StatusLabel.Text = "状态: 界面已显示"
+            delay(2, function()
+                if player.Character and player.Character:FindFirstChild("Humanoid") then
+                    StatusLabel.Text = "状态: 防护已启用"
+                end
+            end)
+        end
+    end
+end)
+
+print("禁止掉落伤害脚本已加载 - 作者: 和睦")
