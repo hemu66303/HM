@@ -1,6 +1,5 @@
 -- 禁止掉落伤害脚本
 -- 作者: 和睦
--- 修复版 - 优化状态显示
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -171,34 +170,30 @@ local function preventFallDamage(character, humanoid)
         return 
     end
     
-    StatusLabel.Text = "状态: 已激活"
-    
-    -- 方法1: 禁用掉落状态（主要方法）
-    local success1, result1 = pcall(function()
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    end)
-    
-    local success2, result2 = pcall(function()
-        humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
-    end)
-    
-    if success1 and success2 then
-        StatusLabel.Text = "状态: 防护已启用"
-    else
-        StatusLabel.Text = "状态: 使用备用方案"
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then
+        StatusLabel.Text = "状态: 缺少根部件"
+        return
     end
     
-    -- 方法2: 健康值保护（备用方案）
+    StatusLabel.Text = "状态: 已激活"
+    
+    local connections = {}
+    local isFalling = false
+    local lastValidPosition = rootPart.Position
+
+    -- 方法1: 健康值保护（主要方法）
     local lastHealth = humanoid.Health
     local healthConnection = humanoid.HealthChanged:Connect(function()
         if humanoid.Health < lastHealth then
             local healthDiff = lastHealth - humanoid.Health
             -- 如果健康值下降超过10（可能是掉落伤害）
-            if healthDiff > 10 and healthDiff < 100 then -- 排除正常伤害和死亡
+            if healthDiff > 10 and healthDiff < 100 then
                 humanoid.Health = lastHealth
                 StatusLabel.Text = "状态: 已阻止掉落伤害"
+                
                 -- 2秒后恢复状态显示
-                delay(2, function()
+                task.delay(2, function()
                     if humanoid and humanoid.Health > 0 then
                         StatusLabel.Text = "状态: 防护已启用"
                     end
@@ -208,38 +203,85 @@ local function preventFallDamage(character, humanoid)
         lastHealth = humanoid.Health
     end)
     
-    -- 方法3: 掉落状态检测
-    local stateConnection = humanoid.StateChanged:Connect(function(oldState, newState)
-        if newState == Enum.HumanoidStateType.Freefall then
-            StatusLabel.Text = "状态: 检测到掉落"
-            -- 在掉落过程中保持健康值
-            local fallStartHealth = humanoid.Health
-            local fallProtection = RunService.Heartbeat:Connect(function()
-                if humanoid.Health < fallStartHealth then
-                    humanoid.Health = fallStartHealth
-                end
+    table.insert(connections, healthConnection)
+
+    -- 方法2: 位置保护 - 防止陷地
+    local positionConnection = RunService.Heartbeat:Connect(function()
+        if not character or not humanoid or humanoid.Health <= 0 then
+            return
+        end
+        
+        local currentPosition = rootPart.Position
+        local currentState = humanoid:GetState()
+        
+        -- 检测是否在掉落
+        if currentState == Enum.HumanoidStateType.Freefall then
+            if not isFalling then
+                isFalling = true
+                lastValidPosition = currentPosition
+                StatusLabel.Text = "状态: 掉落中..."
+            end
+        else
+            if isFalling then
+                -- 停止掉落时检查位置
+                isFalling = false
                 
-                -- 如果不再掉落，断开连接
-                if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall then
-                    fallProtection:Disconnect()
-                    StatusLabel.Text = "状态: 防护已启用"
+                -- 防止陷地：如果位置异常，纠正位置
+                if currentPosition.Y < lastValidPosition.Y - 5 then
+                    rootPart.Position = Vector3.new(
+                        currentPosition.X,
+                        lastValidPosition.Y + 3, -- 抬升一点高度
+                        currentPosition.Z
+                    )
+                    StatusLabel.Text = "状态: 位置已纠正"
+                    
+                    task.delay(1, function()
+                        if humanoid and humanoid.Health > 0 then
+                            StatusLabel.Text = "状态: 防护已启用"
+                        end
+                    end)
+                else
+                    StatusLabel.Text = "状态: 安全着陆"
+                    task.delay(1, function()
+                        StatusLabel.Text = "状态: 防护已启用"
+                    end)
                 end
-            end)
+            end
         end
     end)
+    
+    table.insert(connections, positionConnection)
+
+    -- 方法3: 掉落状态监控
+    local stateConnection = humanoid.StateChanged:Connect(function(oldState, newState)
+        if newState == Enum.HumanoidStateType.Freefall then
+            StatusLabel.Text = "状态: 开始掉落"
+        elseif newState == Enum.HumanoidStateType.Landed then
+            StatusLabel.Text = "状态: 安全着陆"
+        end
+    end)
+    
+    table.insert(connections, stateConnection)
     
     -- 监听角色死亡
     local diedConnection = humanoid.Died:Connect(function()
         StatusLabel.Text = "状态: 角色死亡"
+        -- 断开所有连接
+        for _, conn in ipairs(connections) do
+            conn:Disconnect()
+        end
         -- 5秒后重新初始化（等待重生）
-        delay(5, function()
+        task.delay(5, function()
             if player.Character then
                 setupCharacter()
             end
         end)
     end)
     
-    return healthConnection, stateConnection, diedConnection
+    table.insert(connections, diedConnection)
+    
+    StatusLabel.Text = "状态: 防护已启用"
+    return connections
 end
 
 -- 角色管理
@@ -247,7 +289,7 @@ local currentConnections = {}
 
 local function setupCharacter()
     -- 清理之前的连接
-    for _, connection in pairs(currentConnections) do
+    for _, connection in ipairs(currentConnections) do
         if connection then
             connection:Disconnect()
         end
@@ -274,11 +316,13 @@ local function setupCharacter()
     end
     
     -- 等待角色完全加载
-    delay(1, function()
-        local healthConn, stateConn, diedConn = preventFallDamage(character, humanoid)
-        if healthConn then table.insert(currentConnections, healthConn) end
-        if stateConn then table.insert(currentConnections, stateConn) end
-        if diedConn then table.insert(currentConnections, diedConn) end
+    task.delay(1, function()
+        local newConnections = preventFallDamage(character, humanoid)
+        if newConnections then
+            for _, conn in ipairs(newConnections) do
+                table.insert(currentConnections, conn)
+            end
+        end
     end)
 end
 
@@ -288,7 +332,7 @@ setupCharacter()
 -- 角色重生时重新设置
 player.CharacterAdded:Connect(function(character)
     StatusLabel.Text = "状态: 新角色生成中..."
-    delay(2, function() -- 给角色一些时间完全加载
+    task.delay(2, function() -- 给角色一些时间完全加载
         setupCharacter()
     end)
 end)
@@ -301,7 +345,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         MainFrame.Visible = not MainFrame.Visible
         if MainFrame.Visible then
             StatusLabel.Text = "状态: 界面已显示"
-            delay(2, function()
+            task.delay(2, function()
                 if player.Character and player.Character:FindFirstChild("Humanoid") then
                     StatusLabel.Text = "状态: 防护已启用"
                 end
