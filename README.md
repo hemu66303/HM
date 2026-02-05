@@ -1,2 +1,0 @@
-# HM
-Prohibition of injury
